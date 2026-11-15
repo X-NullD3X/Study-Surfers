@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Study Surfers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+  :root{color-scheme:light;
+    --ink:#1d2340; --paper:#fffaf0; --yellow:#ffc928; --red:#ff5a5f; --green:#2ecc71;
+    --blue:#3d7bff; --purple:#8a5cff; --shadow:0 6px 0 rgba(0,0,0,.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#87c9ff;font-family:'Fredoka',system-ui,sans-serif;color:var(--ink)}
+  #game{position:fixed;inset:0;touch-action:none}
+  canvas{display:block}
+  .hidden{display:none!important}
+  .ic{display:inline-flex;width:1.15em;height:1.15em;vertical-align:-0.2em;flex:none}
+  .ic svg{width:100%;height:100%;display:block}
+  #pauseBtn .ic{width:22px;height:22px}
+  .btn .ic{margin-right:4px}
+  button{font-family:inherit;cursor:pointer;color:var(--ink)}
+
+  /* HUD */
+  #hud{position:fixed;inset:0;pointer-events:none}
+  .topbar{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .pill{background:rgba(255,255,255,.92);border-radius:16px;padding:6px 10px;font-weight:700;font-size:clamp(14px,3.6vw,18px);box-shadow:var(--shadow);display:flex;align-items:center;gap:6px}
+  .stack{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .stack.right{justify-content:flex-end;flex-wrap:nowrap}
+  #pauseBtn{pointer-events:auto;border:0;background:rgba(255,255,255,.92);border-radius:14px;width:44px;height:44px;font-size:20px;font-weight:700;box-shadow:var(--shadow)}
+  #hearts{font-size:20px;gap:3px}
+
+  #qpanel{position:absolute;top:64px;left:50%;transform:translateX(-50%);width:min(760px,94vw);background:var(--paper);border:4px solid var(--ink);border-radius:20px;padding:12px 16px 14px;box-shadow:0 8px 0 rgba(0,0,0,.25);text-align:center}
+  #qpanel .tag{display:inline-block;background:var(--purple);color:#fff;font-weight:700;font-size:13px;padding:2px 10px;border-radius:99px;margin-bottom:6px;letter-spacing:.5px}
+  #qtext{font-weight:600;line-height:1.3}
+  #qopts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .opt{border-radius:12px;padding:8px 6px;font-size:clamp(12px,1.9vw,16px);font-weight:600;color:#fff;line-height:1.2;word-break:break-word;border:3px solid transparent;transition:transform .15s}
+  .opt b{display:block;font-size:1.25em}
+  .opt.sel{border-color:var(--ink);transform:translateY(-3px)}
+  .opt.correct{outline:4px solid var(--green)}
+  .opt.wrong{opacity:.45}
+  #qtimer{height:8px;background:#e6e0d0;border-radius:99px;margin-top:10px;overflow:hidden}
+  #qtimer div{height:100%;background:var(--yellow);width:100%;transition:width .1s linear}
+  #qtimer.urgent div{background:var(--red)}
+  #slowfx{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(60,20,140,.55) 100%)}
+  body.slowmo #slowfx{opacity:1}
+  #slowLabel{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);font-weight:700;color:#fff;letter-spacing:4px;font-size:18px;text-shadow:0 2px 0 #1d2340;opacity:0;transition:opacity .4s;pointer-events:none}
+  body.slowmo #slowLabel{opacity:.9;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.4}}
+
+  #toast{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);font-size:clamp(28px,6vw,54px);font-weight:700;color:#fff;-webkit-text-stroke:2px var(--ink);text-shadow:0 5px 0 var(--ink);opacity:0;transition:opacity .25s;white-space:nowrap}
+  #toast.show{opacity:1}
+  #hint{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.45);color:#fff;padding:6px 14px;border-radius:99px;font-size:14px;white-space:nowrap}
+
+  /* Screens */
+  .screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:linear-gradient(160deg,rgba(61,123,255,.85),rgba(138,92,255,.85));overflow:auto}
+  .card{background:var(--paper);border:4px solid var(--ink);border-radius:26px;box-shadow:0 10px 0 rgba(0,0,0,.25);width:min(620px,100%);padding:22px;max-height:100%;overflow:auto}
+  h1{margin:0;font-size:clamp(34px,7vw,52px);line-height:1;text-align:center;color:var(--yellow);-webkit-text-stroke:2px var(--ink);text-shadow:0 5px 0 var(--ink)}
+  .sub{text-align:center;margin:10px 0 16px;font-size:16px}
+  .drop{border:3px dashed var(--ink);border-radius:18px;padding:18px;text-align:center;background:#fff;transition:background .2s}
+  .drop.over{background:#fff3c4}
+  .drop .big{font-size:44px;line-height:1}
+  .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px}
+  .btn{color:var(--ink);border:3px solid var(--ink);border-radius:14px;padding:10px 16px;font-size:16px;font-weight:700;background:#fff;box-shadow:0 4px 0 var(--ink);transition:transform .08s}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+  .btn.primary{background:var(--yellow);font-size:22px;padding:12px 28px}
+  .btn.green{background:var(--green);color:#fff}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  textarea{width:100%;min-height:120px;border:3px solid var(--ink);border-radius:14px;padding:10px;font-family:inherit;font-size:14px;resize:vertical;margin-top:10px}
+  #status{margin-top:12px;text-align:center;font-weight:600;min-height:1.4em}
+  #preview{margin-top:8px;font-size:14px;background:#fff;border-radius:12px;padding:8px 12px;border:2px solid #ddd;max-height:150px;overflow:auto}
+  #preview div{padding:4px 0;border-bottom:1px dashed #ddd}
+  #preview div:last-child{border:0}
+  .muted{font-size:13px;opacity:.75;text-align:center;margin-top:10px;line-height:1.4}
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:14px;margin-top:12px;background:#fff;border-radius:12px;padding:10px;border:2px solid #ddd}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin:14px 0}
+  .stats div{background:#fff;border:3px solid var(--ink);border-radius:14px;padding:8px}
+  .stats b{display:block;font-size:26px}
+  #review{background:#fff;border-radius:12px;padding:8px 12px;border:2px solid #ddd;max-height:220px;overflow:auto;font-size:14px}
+  #review .item{padding:6px 0;border-bottom:1px dashed #ddd}
+  #review .ans{color:#17924a;font-weight:700}
+  details summary{cursor:pointer;font-weight:600;margin-top:10px}
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="slowfx"></div>
+<div id="hud" class="hidden">
+  <div id="slowLabel"><i data-i="clock"></i> SLOW-MO</div>
+  <div class="topbar">
+    <div class="stack">
+      <div class="pill"><i data-i="star"></i> <span id="score">0</span></div>
+      <div class="pill"><i data-i="coin"></i> <span id="coins">0</span></div>
+      <div class="pill"><i data-i="check"></i> <span id="qscore">0/0</span></div>
+    </div>
+    <div class="stack right">
+      <div class="pill" id="hearts"></div>
+      <button id="pauseBtn" title="Pause"><i data-i="pause"></i></button>
+    </div>
+  </div>
+  <div id="qpanel" class="hidden">
+    <div class="tag"><i data-i="clock"></i> <span id="qsec">30</span>s · Swipe ←→ to pick · Swipe ↑ to lock in</div>
+    <div id="qtext"></div>
+    <div id="qopts"></div>
+    <div id="qtimer"><div></div></div>
+  </div>
+  <div id="toast"></div>
+  <div id="hint">Swipe or use ← → ↑ ↓ / A D W S</div>
+</div>
+
+<!-- Start screen -->
+<div id="startScreen" class="screen">
+  <div class="card">
+    <h1>STUDY SURFERS</h1>
+    <p class="sub">Load your reviewer, then run. Quiz gates will block the tracks, so swipe into the lane with the right answer!</p>
+
+    <div class="drop" id="drop">
+      <div class="big"><i data-i="file"></i></div>
+      <div><b>Drop your reviewer PDF here</b><br><span style="font-size:14px">or a .txt file</span></div>
+      <div class="row">
+        <label class="btn" for="fileIn">Choose file</label>
+        <input id="fileIn" type="file" accept=".pdf,.txt,application/pdf,text/plain" class="hidden">
+        <button class="btn" id="demoBtn">Use sample questions</button>
+      </div>
+    </div>
+
+    <details>
+      <summary><i data-i="pencil"></i> Or paste your notes / write your own questions</summary>
+      <textarea id="notes" placeholder="Paste notes here. Lines like:
+Photosynthesis: the process plants use to make food from sunlight.
+Mitochondria is the powerhouse of the cell.
+
+Or write exact questions (question | correct | wrong | wrong):
+What does SDG stand for? | Sustainable Development Goals | Social Data Group | Smart Digital Growth"></textarea>
+      <div class="row"><button class="btn" id="notesBtn">Make questions from text</button></div>
+    </details>
+
+    <div id="status">No reviewer loaded yet. You can still play with the sample set.</div>
+    <div id="preview" class="hidden"></div>
+    <div class="row"><button class="btn hidden" id="regenBtn"><i data-i="refresh"></i>Make new questions</button></div>
+
+    <div class="row" style="margin-top:16px"><button class="btn primary" id="playBtn"><i data-i="play"></i>PLAY</button></div>
+
+    <div class="controls">
+      <div><i data-i="lr"></i> Swipe / ← → : change lane</div>
+      <div><i data-i="up"></i> Swipe up / ↑ / Space : jump</div>
+      <div><i data-i="down"></i> Swipe down / ↓ : roll</div>
+      <div><i data-i="train"></i> Use the ramps to run on trains</div>
+      <div style="grid-column:1/3"><i data-i="quiz"></i> Quiz time: the game slows down. Pick a lane, then swipe up to lock in early. You get 30 seconds at first, and less the longer you survive.</div>
+    </div>
+    <div class="muted">Your PDF is read on this device only and is never uploaded. Scanned (image-only) PDFs have no text to read, so paste the notes instead.<br>Best: <span id="best">0</span></div>
+  </div>
+</div>
+
+<!-- Pause screen -->
+<div id="pauseScreen" class="screen hidden">
+  <div class="card" style="text-align:center">
+    <h1>PAUSED</h1>
+    <div class="row" style="margin-top:20px">
+      <button class="btn primary" id="resumeBtn"><i data-i="play"></i>Resume</button>
+      <button class="btn" id="quitBtn">Quit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game over -->
+<div id="overScreen" class="screen hidden">
+  <div class="card">
+    <h1 id="overTitle">CAUGHT!</h1>
+    <div class="stats">
+      <div>Score<b id="oScore">0</b></div>
+      <div>Correct<b id="oCorrect">0/0</b></div>
+      <div>Coins<b id="oCoins">0</b></div>
+    </div>
+    <div id="reviewWrap">
+      <b><i data-i="book"></i> Review what you missed</b>
+      <div id="review"></div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn primary" id="againBtn">↻ Run again</button>
+      <button class="btn" id="menuBtn">Change reviewer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ICONS={
+ star:'<svg viewBox="0 0 24 24"><path fill="#ffc928" stroke="#c98a00" stroke-width="1.5" stroke-linejoin="round" d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z"/></svg>',
+ coin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="#ffd23f" stroke="#c98a00" stroke-width="1.5"/><circle cx="12" cy="12" r="6" fill="none" stroke="#e0a400" stroke-width="1.5"/><path d="M12 8.5v7" stroke="#c98a00" stroke-width="2" stroke-linecap="round"/></svg>',
+ heart:'<svg viewBox="0 0 24 24"><path fill="#ff4d5a" stroke="#c22a36" stroke-width="1.3" d="M12 20.5S3 15 3 8.8A4.6 4.6 0 0 1 12 6.6a4.6 4.6 0 0 1 9 2.2C21 15 12 20.5 12 20.5z"/></svg>',
+ heartOff:'<svg viewBox="0 0 24 24"><path fill="#e6e0d0" stroke="#b9b2a2" stroke-width="1.3" d="M12 20.5S3 15 3 8.8A4.6 4.6 0 0 1 12 6.6a4.6 4.6 0 0 1 9 2.2C21 15 12 20.5 12 20.5z"/></svg>',
+ check:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#2ecc71"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 9v4.5l3 2M9.5 2.5h5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+ file:'<svg viewBox="0 0 24 24"><path fill="#fff" stroke="#1d2340" stroke-width="1.6" stroke-linejoin="round" d="M6 2.5h8l4.5 4.5v14.5H6z"/><path d="M14 2.5V7h4.5M8.5 11h7M8.5 14h7M8.5 17h5" fill="none" stroke="#1d2340" stroke-width="1.6" stroke-linecap="round"/><rect x="3.5" y="13" width="9" height="5" rx="1" fill="#ff5a5f"/><text x="8" y="17" font-size="4.2" font-weight="700" fill="#fff" text-anchor="middle" font-family="sans-serif">PDF</text></svg>',
+ pencil:'<svg viewBox="0 0 24 24"><path fill="#ffc928" stroke="#1d2340" stroke-width="1.5" stroke-linejoin="round" d="M4 20l1-4.5L16 4.5l3.5 3.5L8.5 19z"/><path d="M4 20l1-4.5 3.5 3.5z" fill="#ffcf9e" stroke="#1d2340" stroke-width="1.5" stroke-linejoin="round"/><path d="M14 7l3.5 3.5" stroke="#1d2340" stroke-width="1.5"/></svg>',
+ refresh:'<svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4h-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ lr:'<svg viewBox="0 0 24 24"><path d="M9 6l-6 6 6 6M15 6l6 6-6 6M3.5 12h17" fill="none" stroke="#3d7bff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ up:'<svg viewBox="0 0 24 24"><path d="M6 10l6-6 6 6M12 4.5V20" fill="none" stroke="#2ecc71" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ down:'<svg viewBox="0 0 24 24"><path d="M6 14l6 6 6-6M12 19.5V4" fill="none" stroke="#ff5a5f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ train:'<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="14" rx="3" fill="#ffc928" stroke="#1d2340" stroke-width="1.5"/><rect x="7.5" y="5.5" width="9" height="5" rx="1" fill="#bfe8ff" stroke="#1d2340" stroke-width="1.2"/><circle cx="9" cy="14" r="1.2" fill="#1d2340"/><circle cx="15" cy="14" r="1.2" fill="#1d2340"/><path d="M8 17l-2.5 4M16 17l2.5 4" stroke="#1d2340" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ quiz:'<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2.5" fill="#fff" stroke="currentColor" stroke-width="1.8"/><path d="M8 8.5l1.5 1.5 3-3M8 15.5l1.5 1.5 3-3" fill="none" stroke="#2ecc71" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.5 9h2.5M14.5 16h2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ book:'<svg viewBox="0 0 24 24"><path d="M3 5.5c3-1.3 6-1.3 9 .8 3-2.1 6-2.1 9-.8v13c-3-1.3-6-1.3-9 .8-3-2.1-6-2.1-9-.8z" fill="#8a5cff" stroke="#1d2340" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 6.3v13" stroke="#1d2340" stroke-width="1.5"/></svg>',
+ warn:'<svg viewBox="0 0 24 24"><path d="M12 3L22 20H2z" fill="#ffc928" stroke="#1d2340" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="#1d2340" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.3" r="1.1" fill="#1d2340"/></svg>',
+ ask:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#3d7bff"/><path d="M9.3 9.2a2.8 2.8 0 1 1 3.9 2.6c-.8.4-1.2 1-1.2 1.8v.6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1.2" fill="#fff"/></svg>',
+ play:'<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+ pause:'<svg viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/></svg>',
+ party:'<svg viewBox="0 0 24 24"><path d="M3 21l5-14 9 9z" fill="#ffc928" stroke="#1d2340" stroke-width="1.5" stroke-linejoin="round"/><path d="M14 4v2M19 9h2M17.5 5.5l1.5-1.5M12 7.5l1-1.5M16.5 12l1.5 1" stroke="#ff5a5f" stroke-width="1.8" stroke-linecap="round"/></svg>'
+};
+function ic(n){ return '<span class="ic">'+(ICONS[n]||'')+'</span>'; }
+</script>
+<script>
+/* =========================================================
+   QUESTION GENERATION (runs fully in the browser)
+   ========================================================= */
+const STOP = new Set(("a an the and or but if then than that this these those is are was were be been being of in on at to for from by with as into onto over under about after before between during through without within it its they them their there here which who whom whose what when where why how not no yes can could may might will would shall should must do does did done has have had having also such so very more most less least many much some any each every all both either neither one two other another same own only just even because while upon via per among across around against along toward towards using used use etc i you he she we me him her us our your my his").split(" "));
+
+const SAMPLE = [
+  {q:"How many Sustainable Development Goals (SDGs) did the United Nations adopt in 2015?", a:"17", w:["12","20"]},
+  {q:"SDG 4 is about…", a:"Quality Education", w:["Clean Water","Zero Hunger"]},
+  {q:"SDG 13 focuses on…", a:"Climate Action", w:["Life on Land","Gender Equality"]},
+  {q:"The target year for achieving the SDGs is…", a:"2030", w:["2025","2050"]},
+  {q:"Who proposed the heliocentric model, with the Sun at the center?", a:"Copernicus", w:["Ptolemy","Aristotle"]},
+  {q:"Who invented the movable-type printing press in Europe around 1440?", a:"Gutenberg", w:["Galileo","Newton"]},
+  {q:"Which revolution in the 18th–19th century brought steam power and factories?", a:"Industrial Revolution", w:["Scientific Revolution","Green Revolution"]},
+  {q:"Who formulated the three laws of motion?", a:"Isaac Newton", w:["Albert Einstein","Galileo Galilei"]},
+  {q:"The 'powerhouse of the cell' is the…", a:"Mitochondria", w:["Nucleus","Ribosome"]},
+  {q:"What is the chemical formula of water?", a:"H₂O", w:["CO₂","O₂"]},
+  {q:"Which tool did Galileo improve to observe Jupiter's moons?", a:"Telescope", w:["Microscope","Compass"]},
+  {q:"In Java, which keyword creates a new object?", a:"new", w:["make","create"]},
+  {q:"In Java, which type stores true or false?", a:"boolean", w:["int","String"]},
+  {q:"What is 7 × 8?", a:"56", w:["54","64"]},
+  {q:"Who developed the theory of relativity?", a:"Albert Einstein", w:["Nikola Tesla","Marie Curie"]},
+];
+
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function clip(s,n){ s=s.trim(); return s.length>n? s.slice(0,n-1).trim()+'…' : s; }
+function norm(s){ return String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim(); }
+
+/* ---------- Basic (offline) question generator ----------
+   1. Repairs the text a PDF gives us (broken lines, hyphenation, page numbers, repeated headers).
+   2. Finds study facts: definitions, acronyms, who-did-what, years, lists, headings with bullet points.
+   3. Writes full, readable questions and picks wrong answers of the same kind (names vs names, years vs years…). */
+const PAST2BASE={invented:'invent',discovered:'discover',proposed:'propose',developed:'develop',founded:'found',created:'create',wrote:'write',published:'publish',introduced:'introduce',formulated:'formulate',designed:'design',built:'build',coined:'coin',established:'establish',pioneered:'pioneer',observed:'observe',patented:'patent',launched:'launch',described:'describe',identified:'identify',explained:'explain',demonstrated:'demonstrate',theorized:'theorize',improved:'improve',constructed:'construct',authored:'author',led:'lead',headed:'head'};
+const PART2PAST={written:'wrote',built:'built',led:'led',authored:'authored'};
+const PAST_VERBS=Object.keys(PAST2BASE).join('|');
+const PART_VERBS=Object.keys(PAST2BASE).filter(v=>!['wrote'].includes(v)).concat(['written']).join('|');
+const NAME='([A-Z][a-zà-ÿ]+\\.?(?:\\s+(?:de|da|del|van|von|di|la|le)?\\s*[A-Z][a-zà-ÿ]+\\.?){0,3})';
+const SMALL=new Set(['and','of','for','the','in','on','to','a','an','at','by','with','&']);
+
+function cleanText(raw){
+  let t=raw.replace(/\r/g,'').replace(/ /g,' ').replace(/[ \t]+/g,' ');
+  t=t.replace(/(\w)-\n\s*([a-z])/g,'$1$2');                       // re-join hyphenated words
+  t=t.replace(/^\s*(?:[•▪●◦‣∙·\-–*]|\d{1,2}[.)]|[a-z][.)])\s+/gm,'\n• '); // normalize bullets
+  let lines=t.split('\n').map(l=>l.trim()).filter(Boolean);
+  // drop page numbers and lines repeated on many pages (headers/footers)
+  const count={}; lines.forEach(l=>{ const k=norm(l); count[k]=(count[k]||0)+1; });
+  lines=lines.filter(l=>!/^(?:page\s*)?\d{1,4}(?:\s*(?:of|\/)\s*\d{1,4})?$/i.test(l) && !(count[norm(l)]>=3 && l.length<80));
+  // merge lines that were broken in the middle of a sentence
+  const blocks=[];
+  for(const l of lines){
+    const bullet=l.startsWith('• ');
+    const text=bullet? l.slice(2).trim() : l;
+    const prev=blocks[blocks.length-1];
+    const prevOpen=prev && !/[.!?:;]$/.test(prev.text) && prev.text.length>60 && !prev.bullet;
+    if(prev && !bullet && (prevOpen || /^[a-z(,]/.test(text)) && !prev.heading){ prev.text+=' '+text; continue; }
+    blocks.push({text,bullet,heading:false});
+  }
+  // headings: short line, no end punctuation, followed by bullets
+  blocks.forEach((b,i)=>{ const n=blocks[i+1]; if(!b.bullet && b.text.length<70 && !/[.!?]$/.test(b.text) && n && n.bullet) b.heading=true; });
+  return blocks;
+}
+
+function sentencesOf(blocks){
+  const out=[];
+  for(const b of blocks){
+    if(b.heading) continue;
+    b.text.split(/(?<=[.!?])\s+(?=[A-Z0-9“"(])/).forEach(s=>{ s=s.trim(); if(s.length>=20 && s.length<=260) out.push(s); });
+  }
+  return out;
+}
+
+function pickWrong(ans,pool,n=2,avoidText=''){
+  const a=norm(String(ans).replace(/\s*\([^)]*\)/g,'')), aw=ans.split(/\s+/).length;
+  const seen=new Set([a]);
+  const cands=[];
+  for(const p of pool){
+    const k=norm(String(p).replace(/\s*\([^)]*\)/g,''));
+    if(!k||seen.has(k)||k.includes(a)||a.includes(k)) continue;
+    if(avoidText && norm(avoidText).includes(k)) continue;
+    seen.add(k);
+    cands.push({p,score:Math.abs(p.length-ans.length)/Math.max(8,ans.length)+Math.abs(p.split(/\s+/).length-aw)*.3+Math.random()*.35});
+  }
+  cands.sort((x,y)=>x.score-y.score);
+  return shuffle(cands.slice(0,Math.max(n,5)).map(c=>c.p)).slice(0,n);
+}
+function yearWrong(y,pool){
+  const yr=+y;
+  let w=pickWrong(y,pool.filter(p=>Math.abs(+p-yr)<=300));
+  const deltas=shuffle([2,3,5,7,10,12,15,20,25,30,-2,-3,-5,-7,-10,-12,-15,-20,-25,-30]);
+  for(const d of deltas){ if(w.length>=2) break; const v=String(yr+d); if(v!==y && !w.includes(v) && yr+d>0) w.push(v); }
+  return w;
+}
+const cap1=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const trimEnd=s=>s.replace(/[\s,;:]+$/,'').replace(/[.]$/,'');
+
+function makeQuestions(raw){
+  const blocks=cleanText(raw);
+  const sents=sentencesOf(blocks);
+  const typed={exact:[],qa:[],acr:[],who:[],when:[],def:[],list:[],group:[],blank:[]};
+  const seenQ=new Set();
+  const add=(type,q)=>{
+    q.q=q.q.replace(/\s+/g,' ').trim(); q.a=String(q.a).trim(); q.w=(q.w||[]).map(x=>String(x).trim());
+    if(q.w.length<2) return;
+    const opts=[q.a,...q.w].map(norm);
+    if(new Set(opts).size<3||opts.some(o=>!o)) return;
+    if(q.q.length>170 || q.a.length>48 || q.w.some(x=>x.length>48)) return;
+    if(type!=='exact' && type!=='qa' && type!=='blank' && norm(q.q).includes(norm(q.a))) return; // answer would be given away
+    const k=norm(q.q)+'|'+norm(q.a); if(seenQ.has(k)) return; seenQ.add(k);
+    typed[type].push(q);
+  };
+
+  // --- exact questions the student typed: "question | correct | wrong | wrong"
+  for(const b of blocks){ const p=b.text.split('|').map(s=>s.trim()).filter(Boolean); if(p.length>=4) add('exact',{q:p[0],a:p[1],w:shuffle(p.slice(2)).slice(0,2)}); }
+  // --- Q: / A: pairs
+  const qa=[];
+  for(let i=0;i<blocks.length-1;i++){
+    const m1=blocks[i].text.match(/^(?:Q(?:uestion)?\s*\d*\s*[:.)-])\s*(.+)$/i), m2=blocks[i+1].text.match(/^(?:A(?:nswer|ns)?\s*\d*\s*[:.)-])\s*(.+)$/i);
+    if(m1&&m2) qa.push({q:m1[1],a:trimEnd(m2[1])});
+  }
+  for(const x of qa) add('qa',{q:x.q,a:x.a,w:pickWrong(x.a,qa.map(y=>y.a))});
+
+  // --- collect facts
+  const people=new Set(), years=new Set(), terms=[], acr=[], who=[], lists=[], used=new Set();
+  for(const s of sents){
+    (s.match(/\b(1[0-9]{3}|20[0-9]{2})\b/g)||[]).forEach(y=>years.add(y));
+    // acronyms: "Sustainable Development Goals (SDGs)"
+    const am=s.matchAll(/((?:[A-Z][\w'’-]*\s+(?:(?:and|of|for|the|in|on|to|&)\s+)*){1,7}[A-Z][\w'’-]*)\s*\(([A-Z][A-Za-z0-9&]{1,9})\)/g);
+    for(const m of am){
+      const full=m[1].trim().replace(/^The\s+/,''), ab=m[2].replace(/s$/,'');
+      const initials=full.split(/\s+/).filter(w=>!SMALL.has(w.toLowerCase())).map(w=>w[0].toUpperCase()).join('');
+      if(initials[0]===ab[0].toUpperCase() && ab.length>=2 && !acr.some(x=>x.ab===m[2])) acr.push({ab:m[2],full});
+    }
+    // active: "Isaac Newton published the laws of motion in 1687."
+    let m=s.match(new RegExp('^(?:In\\s+(\\d{4}),?\\s+)?'+NAME+'\\s+('+PAST_VERBS+')\\s+(?:the\\s+|a\\s+|an\\s+)?(.+?)(?:\\s+in\\s+(\\d{4}))?(?:\\s*(?:,|\\s+which|\\s+that|\\s+while|\\s+when).*)?[.!]?$'));
+    if(m && !SMALL.has(m[2].split(' ')[0].toLowerCase()) && !/^(The|This|These|It|They|He|She|We|In|On|At)$/.test(m[2])){
+      const art=(s.match(new RegExp(m[3]+'\\s+(the|a|an)\\s'))||[])[1];
+      const yr2=(m[4].match(/\s+(?:around|circa|about|c\.)\s+(\d{4})\b/)||[])[1]; who.push({person:m[2],verb:m[3],obj:(art?art+' ':'')+trimEnd(m[4].replace(/\s+(?:around|circa|about|c\.)\s+\d{4}.*$/,'')),year:m[1]||m[5]||yr2}); people.add(m[2]); used.add(s);
+    }
+    // passive: "The telephone was invented by Alexander Graham Bell in 1876."
+    m=s.match(new RegExp('^(.{3,80}?)\\s+(?:was|were)\\s+(?:first\\s+)?('+PART_VERBS+')\\s+by\\s+'+NAME+'(?:\\s+in\\s+(\\d{4}))?'));
+    if(m){ used.add(s); const v=PART2PAST[m[2]]||m[2]; who.push({person:m[3],verb:v,obj:m[1].replace(/^The\b/,'the'),year:m[4]}); people.add(m[3]); }
+    // lists inside a sentence: "The three branches of government are the executive, legislative, and judicial."
+    const l=s.match(/^(?:The\s+)?(.{4,70}?)\s+(?:are|include|includes|consist of|consists of|is composed of)\s*:?\s+(.+?)[.]?$/);
+    if(l){
+      const items=l[2].split(/,\s*(?:and\s+|or\s+)?|\s+and\s+/).map(x=>trimEnd(x.replace(/^(the|a|an)\s+/i,''))).filter(x=>x&&x.split(/\s+/).length<=5);
+      if(items.length>=3 && items.length<=8){ lists.push({subject:l[1].replace(/^(the)\s+/i,''),items}); used.add(s); }
+    }
+    // definitions
+    let d=s.match(/^((?:The |An? )?[A-Z][\w\-()'’/&]*(?:\s+[\w\-()'’/&]+){0,5}?)\s+(?:is|are|refers to|means|is defined as|is known as|is called)\s+(.{12,200})$/);
+    if(!d) d=s.match(/^([A-Za-z][\w\s\-()'’/&]{1,45}?)\s*(?:[:–—]|\s-\s)\s*(.{12,200})$/);
+    if(d && !used.has(s)){
+      const term=d[1].replace(/^(the|an?)\s+/i,'').replace(/\s*\([A-Z][A-Za-z0-9&]{1,9}\)\s*$/,'').trim(), def=trimEnd(d[2]);
+      const titleish=def.split(/\s+/).filter(w=>w.length>=4).every(w=>/^[A-Z]/.test(w)); // e.g. "Historical Antecedents"
+      const label=/^(chapter|lesson|module|unit|part|section|topic|week|page|quiz|exam|midterm|finals?|prelim|reviewer)\b|reviewer$/i.test(term);
+      if(!titleish && !label)
+      if(term.split(/\s+/).length<=6 && !/^(it|this|that|they|there|he|she|we|you|i|which|one|example|note)$/i.test(term) && !STOP.has(term.toLowerCase()) && !terms.some(t=>norm(t.term)===norm(term)))
+        { terms.push({term,def}); used.add(s); }
+    }
+  }
+  // headings followed by bullet points
+  const groups=[];
+  blocks.forEach((b,i)=>{ if(!b.heading) return; const items=[]; for(let j=i+1;j<blocks.length&&blocks[j].bullet;j++){ const it=trimEnd(blocks[j].text.split(/\s*[:–—-]\s+/)[0]); if(it.length<=40) items.push(it);} if(items.length>=2) groups.push({heading:trimEnd(b.text),items}); });
+  // bullet definitions under headings also count as terms
+  blocks.forEach(b=>{ if(!b.bullet) return; const m=b.text.match(/^([^:–—]{2,45})\s*[:–—]\s*(.{12,200})$/); if(m){ const term=m[1].trim(); if(term.split(/\s+/).length<=6 && !terms.some(t=>norm(t.term)===norm(term))) terms.push({term,def:trimEnd(m[2])}); } });
+
+  const termNames=terms.map(t=>t.term);
+  const peopleArr=[...people], yearArr=[...years];
+
+  // --- write questions
+  for(const a of acr){
+    add('acr',{q:`What does “${a.ab}” stand for?`,a:a.full,w:pickWrong(a.full,acr.map(x=>x.full).concat(termNames.filter(t=>/^[A-Z]/.test(t)&&t.split(' ').length>=2)))});
+    add('acr',{q:`Which abbreviation stands for “${a.full}”?`,a:a.ab,w:pickWrong(a.ab,acr.map(x=>x.ab))});
+  }
+  for(const w of who){
+    const obj=w.obj.length>70? null : w.obj;
+    if(!obj) continue;
+    if(peopleArr.length>=3) add('who',{q:`Who ${w.verb} ${obj}?`,a:w.person,w:pickWrong(w.person,peopleArr)});
+    const base=PAST2BASE[w.verb];
+    const objs=who.map(x=>x.obj).filter(o=>o.length<=40);
+    if(obj.length<=40 && base && objs.length>=3) add('who',{q:`What did ${w.person} ${base}?`,a:cap1(obj.replace(/^(the|a|an)\s+/i,'')),w:pickWrong(obj,objs).map(o=>cap1(o.replace(/^(the|a|an)\s+/i,'')))});
+    if(w.year && base) add('when',{q:`In what year did ${w.person} ${base} ${obj}?`,a:w.year,w:yearWrong(w.year,yearArr)});
+  }
+  if(terms.length>=3){
+    const shortDefs=terms.filter(t=>t.def.length<=48);
+    for(const t of terms){
+      if(t.term.length>40) continue;
+      add('def',{q:`Which term means: “${cap1(t.def)}”?`,a:t.term,w:pickWrong(t.term,termNames.filter(x=>x.length<=40),2,t.def)});
+      if(t.def.length<=48 && shortDefs.length>=3) add('def',{q:`What is ${t.term}?`,a:cap1(t.def),w:pickWrong(t.def,shortDefs.map(x=>cap1(x.def)))});
+    }
+  }
+  if(lists.length>=1){
+    const allItems=lists.flatMap(x=>x.items).concat(termNames);
+    for(const L of lists){
+      const subj=L.subject.replace(/^(\d+|two|three|four|five|six|seven|eight)\s+/i,'');
+      const outside=allItems.filter(x=>!L.items.some(i=>norm(i)===norm(x)));
+      for(const ans of shuffle(L.items.slice()).slice(0,3))
+        add('list',{q:`Which of these is one of the ${subj}?`,a:cap1(ans),w:pickWrong(ans,outside).map(cap1)});
+      const odd=pickWrong(L.items[0],outside,1)[0];
+      if(odd) add('list',{q:`Which of these is NOT one of the ${subj}?`,a:cap1(odd),w:shuffle(L.items.slice()).slice(0,2).map(cap1)});
+    }
+  }
+  if(groups.length>=2){
+    for(const g of groups){
+      const others=groups.filter(x=>x!==g).flatMap(x=>x.items);
+      for(const ans of shuffle(g.items.slice()).slice(0,3))
+        add('group',{q:`Which of these belongs under “${g.heading}”?`,a:ans,w:pickWrong(ans,others)});
+      const odd=pickWrong(g.items[0],others,1)[0];
+      if(odd) add('group',{q:`Which of these does NOT belong under “${g.heading}”?`,a:odd,w:shuffle(g.items.slice()).slice(0,2)});
+    }
+  }
+  // fill-in-the-blank, but only on key facts (names, years, terms, acronyms), never random words
+  const keys=[...peopleArr.map(k=>({k,pool:peopleArr})),...yearArr.map(k=>({k,pool:yearArr,year:true})),...termNames.filter(t=>t.length<=30).map(k=>({k,pool:termNames})),...acr.map(a=>({k:a.ab,pool:acr.map(x=>x.ab)}))];
+  for(const s of shuffle(sents.slice())){
+    if(used.has(s) || s.length>160 || !/^[A-Z0-9“"]/.test(s)) continue;
+    const hits=keys.filter(x=>new RegExp('(^|[^\\w])'+x.k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\w])').test(s));
+    if(!hits.length) continue;
+    const h=pick(hits);
+    const wrong=h.year? yearWrong(h.k,yearArr) : pickWrong(h.k,h.pool,2,s);
+    if(wrong.length<2) continue;
+    const blanked=s.replace(new RegExp('(^|[^\\w])'+h.k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\w])'),'$1_____');
+    if(/[A-Z][a-z]+ (?:and|of|for|the|&) _____|_____ (?:and|of|for|&) [A-Z]/.test(blanked)) continue; // blank inside a longer name
+    add('blank',{q:`Complete: ${blanked}`,a:h.k,w:wrong});
+    if(typed.blank.length>100) break;
+  }
+
+  // mix question types so a run doesn't feel repetitive (typed-in questions first)
+  const order=['acr','who','when','def','list','group','blank'];
+  const pools=order.map(k=>shuffle(typed[k]));
+  const mixed=[...typed.exact,...typed.qa];
+  while(pools.some(p=>p.length)) for(const p of pools) if(p.length) mixed.push(p.shift());
+  return mixed.slice(0,200);
+}
+
+function buildQuestions(txt,name){
+  setStatus('Making questions…');
+  useQuestions(makeQuestions(txt), name);
+}
+
+async function readPdf(file){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  let all='';
+  for(let p=1;p<=pdf.numPages;p++){
+    setStatus(`Reading page ${p} of ${pdf.numPages}…`);
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    let lastY=null, line='';
+    for(const it of tc.items){
+      const y = it.transform? Math.round(it.transform[5]) : null;
+      if(lastY!==null && y!==null && Math.abs(y-lastY)>2){ all+=line.trim()+'\n'; line=''; }
+      line += it.str + (it.hasEOL? '\n' : (it.str.endsWith(' ')?'':' '));
+      lastY = y;
+    }
+    all += line.trim()+'\n\n';
+  }
+  return all;
+}
+
+/* =========================================================
+   START SCREEN LOGIC
+   ========================================================= */
+const $ = id => document.getElementById(id);
+document.querySelectorAll('i[data-i]').forEach(el=>{ el.outerHTML=ic(el.dataset.i); });
+let QUESTIONS = SAMPLE.slice();
+let LAST_TEXT='', LAST_NAME='';
+let sourceName = 'sample set';
+function esc(t){ return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function setStatus(t){ const m=String(t).match(/^(⚠️|✅)\s*/); $('status').innerHTML=m? ic(m[1]==='✅'?'check':'warn')+' '+esc(t.slice(m[0].length)) : esc(t); }
+function showPreview(list){
+  const p=$('preview'); p.innerHTML='';
+  list.slice(0,5).forEach(q=>{ const d=document.createElement('div'); d.textContent='• '+q.q+'  →  '+q.a; p.appendChild(d); });
+  p.classList.toggle('hidden', !list.length);
+}
+function useQuestions(list,name){
+  if(list.length<1){ setStatus(`⚠️ Couldn't build questions from ${name}. Try pasting the notes, or use "question | right | wrong | wrong" lines.`); showPreview([]); return; }
+  QUESTIONS=list; sourceName=name;
+  setStatus(`✅ ${list.length} question${list.length>1?'s':''} ready from ${name}`);
+  showPreview(list);
+  $('regenBtn').classList.toggle('hidden', !LAST_TEXT);
+}
+async function handleFile(f){
+  if(!f) return;
+  try{
+    let txt;
+    if(/\.pdf$/i.test(f.name) || f.type==='application/pdf'){
+      if(!window.pdfjsLib){ setStatus('⚠️ The PDF reader did not load. Check your connection, or paste the text instead.'); return; }
+      txt = await readPdf(f);
+    } else txt = await f.text();
+    if(txt.replace(/\s/g,'').length<30){ setStatus('⚠️ No text found in that file. It may be a scanned PDF, so paste the notes instead.'); showPreview([]); return; }
+    LAST_TEXT=txt; LAST_NAME=f.name;
+    await buildQuestions(txt, f.name);
+  }catch(e){ console.error(e); setStatus('⚠️ Could not read that file: '+(e.message||e)); }
+}
+$('fileIn').addEventListener('change', e=>handleFile(e.target.files[0]));
+const drop=$('drop');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop', e=>handleFile(e.dataTransfer.files[0]));
+$('demoBtn').onclick=()=>useQuestions(SAMPLE.slice(),'the sample set');
+$('notesBtn').onclick=()=>{ const t=$('notes').value; if(t.trim().length<10){setStatus('Paste some notes first.');return;}
+  // exact "q | a | w | w" lines are used as written; anything else goes through the generator
+  const exact=t.split('\n').filter(l=>l.split('|').filter(x=>x.trim()).length>=4).length;
+  LAST_TEXT=t; LAST_NAME='your notes';
+  if(exact>=3) useQuestions(makeQuestions(t),'your notes'); else buildQuestions(t,'your notes'); };
+$('regenBtn').onclick=()=>{ if(LAST_TEXT) buildQuestions(LAST_TEXT,LAST_NAME); };
+let best=0; try{ best=+localStorage.getItem('studySurfersBest')||0; }catch(e){}
+$('best').textContent=best;
+
+/* =========================================================
+   AUDIO
+   ========================================================= */
+let actx=null;
+function beep(freq=600,dur=.08,type='square',vol=.06,slide=0){
+  if(!actx) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.value=freq;
+  if(slide) o.frequency.linearRampToValueAtTime(freq+slide, actx.currentTime+dur);
+  g.gain.value=vol; g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+dur);
+  o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+dur);
+}
+const sfx={
+  coin:()=>beep(1200,.07,'square',.04,300),
+  jump:()=>beep(400,.12,'triangle',.08,300),
+  lane:()=>beep(300,.05,'sine',.05,100),
+  right:()=>{beep(660,.1,'square',.06);setTimeout(()=>beep(880,.1,'square',.06),90);setTimeout(()=>beep(1320,.18,'square',.06),180);},
+  wrong:()=>{beep(300,.18,'sawtooth',.07,-120);setTimeout(()=>beep(200,.25,'sawtooth',.07,-80),160);},
+  crash:()=>beep(150,.4,'sawtooth',.1,-100),
+  gate:()=>{beep(520,.08,'triangle',.06);setTimeout(()=>beep(780,.12,'triangle',.06),100);}
+};
+
+/* =========================================================
+   3D WORLD
+   ========================================================= */
+const LANES=[-2.6,0,2.6];
+const SPAWN_Z=-150;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+$('game').appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8fd3ff);
+scene.fog=new THREE.Fog(0x8fd3ff,45,140);
+const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,300);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x88aa66,.75));
+const sun=new THREE.DirectionalLight(0xffffff,.85);
+sun.position.set(-12,25,10); sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+Object.assign(sun.shadow.camera,{left:-15,right:15,top:20,bottom:-30,near:1,far:80});
+scene.add(sun); scene.add(sun.target);
+
+const M=(c,o={})=>new THREE.MeshLambertMaterial(Object.assign({color:c,flatShading:true},o));
+const mats={
+  yellow:M(0xffc928), yellowDark:M(0xe0a400), black:M(0x2a2a35), window:M(0xbfe8ff), red:M(0xff5a5f),
+  white:M(0xffffff), wood:M(0xc98a4b), woodDark:M(0x8a5a2b), metal:M(0x9aa4b5), brick:M(0xd9694a),
+  roof:M(0x5b6cff), green:M(0x4caf50), greenDark:M(0x2e8b3d), trunk:M(0x8b5a2b), locker:M(0x3d7bff),
+  gold:M(0xffd23f,{emissive:0x553300}), skin:M(0xffcf9e), hoodie:M(0xff5a5f), pants:M(0x2f3b6b), bag:M(0x2ecc71),
+  shoe:M(0xffffff), hair:M(0x2b1d14), chalk:M(0x2f5d3a), banner:M(0x8a5cff), grass:M(0x7ccf5a)
+};
+const box=(w,h,d,m)=>{const me=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);me.castShadow=true;me.receiveShadow=true;return me;};
+
+// Ground with scrolling track texture
+function trackTexture(){
+  const c=document.createElement('canvas'); c.width=512; c.height=256; const g=c.getContext('2d');
+  g.fillStyle='#8c7f73'; g.fillRect(0,0,512,256);
+  for(let i=0;i<400;i++){g.fillStyle=`rgba(0,0,0,${Math.random()*.12})`;g.fillRect(Math.random()*512,Math.random()*256,4,4);}
+  const laneW=512/3;
+  for(let l=0;l<3;l++){
+    const cx=laneW*l+laneW/2;
+    for(let y=0;y<256;y+=32){ g.fillStyle='#6b4a2e'; g.fillRect(cx-60,y+6,120,14); }
+    g.fillStyle='#c9ced8'; g.fillRect(cx-42,0,8,256); g.fillRect(cx+34,0,8,256);
+  }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1,24); return t;
+}
+const trackTex=trackTexture();
+const track=new THREE.Mesh(new THREE.PlaneGeometry(7.8,192),new THREE.MeshLambertMaterial({map:trackTex}));
+track.rotation.x=-Math.PI/2; track.position.z=-80; track.receiveShadow=true; scene.add(track);
+const grassTex=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle='#7ccf5a';g.fillRect(0,0,128,128);for(let i=0;i<300;i++){g.fillStyle=Math.random()<.5?'#6cbf4a':'#8fdc6a';g.fillRect(Math.random()*128,Math.random()*128,3,3);}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(20,60);return t;})();
+const grass=new THREE.Mesh(new THREE.PlaneGeometry(120,192),new THREE.MeshLambertMaterial({map:grassTex}));
+grass.rotation.x=-Math.PI/2; grass.position.set(0,-.02,-80); grass.receiveShadow=true; scene.add(grass);
+// Sidewalks
+const walkTex=(()=>{const c=document.createElement('canvas');c.width=64;c.height=64;const g=c.getContext('2d');g.fillStyle='#d8d2c8';g.fillRect(0,0,64,64);g.strokeStyle='#b8b0a4';g.lineWidth=3;g.strokeRect(0,0,64,64);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(2,64);return t;})();
+[-5.6,5.6].forEach(x=>{const w=new THREE.Mesh(new THREE.PlaneGeometry(3.4,192),new THREE.MeshLambertMaterial({map:walkTex}));w.rotation.x=-Math.PI/2;w.position.set(x,.01,-80);w.receiveShadow=true;scene.add(w);});
+
+/* ---------- Player (low-poly student) ---------- */
+const player=new THREE.Group();
+const body=new THREE.Group(); player.add(body);
+const torso=box(.8,.9,.5,mats.hoodie); torso.position.y=1.25; body.add(torso);
+const head=box(.62,.62,.6,mats.skin); head.position.y=2.05; body.add(head);
+const hair=box(.66,.2,.64,mats.hair); hair.position.y=2.4; body.add(hair);
+const cap=box(.66,.12,.35,mats.hoodie); cap.position.set(0,2.36,-.3); body.add(cap);
+const bag=box(.6,.7,.3,mats.bag); bag.position.set(0,1.3,.38); body.add(bag);
+function limb(m,w,h,x,y){const g=new THREE.Group();const b=box(w,h,w,m);b.position.y=-h/2;g.add(b);g.position.set(x,y,0);body.add(g);return g;}
+const armL=limb(mats.hoodie,.22,.8,-.52,1.65), armR=limb(mats.hoodie,.22,.8,.52,1.65);
+const legL=limb(mats.pants,.28,.82,-.2,.82), legR=limb(mats.pants,.28,.82,.2,.82);
+[legL,legR].forEach(l=>{const s=box(.32,.16,.42,mats.shoe);s.position.set(0,-.82,-.06);l.add(s);});
+player.rotation.y=Math.PI; // face away from camera
+scene.add(player);
+const shadowBlob=new THREE.Mesh(new THREE.CircleGeometry(.5,12),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.25}));
+shadowBlob.rotation.x=-Math.PI/2; scene.add(shadowBlob);
+
+/* ---------- Builders ---------- */
+function makeTrainCar(len){
+  const g=new THREE.Group();
+  const h=3.2;
+  const b=box(2.3,h-.4,len,mats.yellow); b.position.y=.2+(h-.4)/2; g.add(b);
+  const roof=box(2.35,.3,len,mats.yellowDark); roof.position.y=h-.05; g.add(roof);
+  const stripe=box(2.36,.25,len-.2,mats.black); stripe.position.y=1.2; g.add(stripe);
+  for(let z=-len/2+1.2;z<len/2-.8;z+=1.8){ [-1.17,1.17].forEach(x=>{const w=box(.04,.8,1.2,mats.window);w.position.set(x,2.1,z);g.add(w);}); }
+  const front=box(1.6,1,.06,mats.window); front.position.set(0,2.2,len/2+.01); g.add(front);
+  [-.7,.7].forEach(x=>{const l=box(.35,.25,.08,mats.white);l.position.set(x,.8,len/2+.02);g.add(l);});
+  const sign=makeTextPlane('SCHOOL',1.6,.4,'#1d2340','#ffc928'); sign.position.set(0,1.55,len/2+.03); g.add(sign);
+  return g;
+}
+function makeRamp(len,h){
+  const shape=new THREE.Shape(); shape.moveTo(0,0); shape.lineTo(len,0); shape.lineTo(len,h); shape.lineTo(0,0);
+  const geo=new THREE.ExtrudeGeometry(shape,{depth:2.2,bevelEnabled:false});
+  const m=new THREE.Mesh(geo,mats.metal); m.castShadow=m.receiveShadow=true;
+  m.rotation.y=Math.PI/2; m.position.set(-1.1,0,0); // ramp rises toward -z
+  const g=new THREE.Group(); g.add(m);
+  for(let i=1;i<len;i+=1){const s=box(2.2,.06,.15,mats.yellowDark);s.position.set(0,h*i/len+.03,-i);g.add(s);}
+  return g;
+}
+function makeDesk(){
+  const g=new THREE.Group();
+  const top=box(2.1,.15,1,mats.wood); top.position.y=1.05; g.add(top);
+  [[-.9,-.35],[.9,-.35],[-.9,.35],[.9,.35]].forEach(([x,z])=>{const l=box(.1,1,.1,mats.metal);l.position.set(x,.5,z);g.add(l);});
+  const books=box(.6,.25,.45,mats.red); books.position.set(-.4,1.25,0); g.add(books);
+  const books2=box(.5,.2,.4,mats.locker); books2.position.set(-.38,1.47,0); books2.rotation.y=.3; g.add(books2);
+  const apple=box(.22,.22,.22,mats.red); apple.position.set(.55,1.24,0); g.add(apple);
+  return g;
+}
+function makeBanner(){
+  const g=new THREE.Group();
+  [-1.05,1.05].forEach(x=>{const p=box(.14,2.8,.14,mats.metal);p.position.set(x,1.4,0);g.add(p);});
+  const b=box(2.3,.7,.12,mats.banner); b.position.y=2.25; g.add(b);
+  const t=makeTextPlane('NO RUNNING!',2.1,.5,'#ffffff',null); t.position.set(0,2.25,.07); g.add(t);
+  const stripes=box(2.2,.18,.1,mats.yellow); stripes.position.y=1.75; g.add(stripes);
+  return g;
+}
+function makeTextPlane(text,w,h,color,bg){
+  const c=document.createElement('canvas'); c.width=512; c.height=Math.round(512*h/w); const g=c.getContext('2d');
+  if(bg){g.fillStyle=bg;g.fillRect(0,0,c.width,c.height);}
+  g.fillStyle=color; g.font=`700 ${Math.round(c.height*.7)}px Fredoka, sans-serif`; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(text,c.width/2,c.height/2+2,c.width*.92);
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:!bg}));
+  return m;
+}
+const coinGeo=new THREE.CylinderGeometry(.38,.38,.1,10);
+function makeCoin(){ const m=new THREE.Mesh(coinGeo,mats.gold); m.rotation.x=Math.PI/2; m.castShadow=true; return m; }
+
+// Scenery
+function windowTex(){
+  const c=document.createElement('canvas'); c.width=128; c.height=128; const g=c.getContext('2d');
+  g.fillStyle='#e9e2d0'; g.fillRect(0,0,128,128);
+  g.fillStyle='#d9694a'; g.fillRect(0,0,128,128);
+  for(let x=0;x<2;x++)for(let y=0;y<2;y++){g.fillStyle='#fff';g.fillRect(14+x*60,14+y*60,40,40);g.fillStyle='#8fd3ff';g.fillRect(18+x*60,18+y*60,32,32);g.fillStyle='#fff';g.fillRect(33+x*60,18+y*60,2,32);}
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+const winTex=windowTex();
+function makeBuilding(side){
+  const g=new THREE.Group();
+  const w=6+Math.random()*4, h=6+Math.floor(Math.random()*3)*3, d=10+Math.random()*6;
+  const t=winTex.clone(); t.needsUpdate=true; t.repeat.set(Math.round(d/3),Math.round(h/3));
+  const wallM=new THREE.MeshLambertMaterial({map:t});
+  const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),[mats.brick,mats.brick,mats.roof,mats.brick,mats.brick,mats.brick]);
+  b.material[side<0?0:1]=wallM; b.position.y=h/2; b.castShadow=b.receiveShadow=true; g.add(b);
+  const r=box(w+.6,.5,d+.6,mats.roof); r.position.y=h+.25; g.add(r);
+  if(Math.random()<.35){ const s=makeTextPlane(pick(['LIBRARY','SCIENCE LAB','GYM','CANTEEN','ROOM 101','IT DEPT','CLINIC']),4,.9,'#fff','#1d2340'); s.position.set(side<0?w/2+.02:-w/2-.02,h-1.2,0); s.rotation.y=side<0?Math.PI/2:-Math.PI/2; g.add(s); }
+  g.position.x=side*(10+w/2); return {g,len:d};
+}
+function makeTree(side){
+  const g=new THREE.Group();
+  const t=box(.4,1.6,.4,mats.trunk); t.position.y=.8; g.add(t);
+  const l1=new THREE.Mesh(new THREE.IcosahedronGeometry(1.4,0),mats.green); l1.position.y=2.6; l1.castShadow=true; g.add(l1);
+  const l2=new THREE.Mesh(new THREE.IcosahedronGeometry(1,0),mats.greenDark); l2.position.set(.5,3.4,.2); l2.castShadow=true; g.add(l2);
+  g.position.x=side*(7.8+Math.random()*1.4); return {g,len:4};
+}
+function makeLockers(side){
+  const g=new THREE.Group();
+  const n=4+Math.floor(Math.random()*3);
+  for(let i=0;i<n;i++){const l=box(.6,2.2,.8,i%2?mats.locker:new THREE.MeshLambertMaterial({color:0x2f63d6,flatShading:true}));l.position.set(0,1.1,-i*.62);g.add(l);}
+  g.position.x=side*7.6; g.rotation.y=side<0?Math.PI/2*0:0; return {g,len:n*.62+1};
+}
+function makeBoard(side){
+  const g=new THREE.Group();
+  [-1.4,1.4].forEach(z=>{const p=box(.15,2.6,.15,mats.woodDark);p.position.set(0,1.3,z);g.add(p);});
+  const b=box(.12,1.4,3.2,mats.woodDark); b.position.y=2.1; g.add(b);
+  const ch=box(.13,1.2,3,mats.chalk); ch.position.y=2.1; g.add(ch);
+  const t=makeTextPlane(pick(['E = mc²','a² + b² = c²','STUDY HARD!','H₂O','F = ma','SDG 4','if (x > 0)']),2.6,.6,'#ffffff',null);
+  t.position.set(side<0?.08:-.08,2.1,0); t.rotation.y=side<0?Math.PI/2:-Math.PI/2; g.add(t);
+  g.position.x=side*7.6; return {g,len:4};
+}
+
+/* =========================================================
+   GAME STATE
+   ========================================================= */
+let objects=[];   // collidable + coins + gates
+let scenery=[];
+const G={};
+function resetGame(){
+  objects.forEach(o=>scene.remove(o.mesh)); scenery.forEach(s=>scene.remove(s.mesh));
+  objects=[]; scenery=[];
+  Object.assign(G,{
+    running:false, paused:false, over:false,
+    speed:14, dist:0, score:0, coins:0, lives:3,
+    lane:1, x:0, y:0, vy:0, grounded:true, roll:0, crashT:0,
+    nextRow:30, laneFree:[0,0,0], nextScenery:[12,12], noSpawn:false, warned:false, curSpeed:14,
+    qTimer:9, qActive:null, qAsked:0, qRight:0, missed:[],
+    qQueue:shuffle(QUESTIONS.map((q,i)=>i)), blockUntil:0, combo:0, runTime:0
+  });
+  // prefill scenery
+  spawnScenery();
+  updateHud();
+}
+function spawnScenery(){
+  [-1,1].forEach((side,si)=>{
+    while(G.nextScenery[si] > SPAWN_Z){
+      const r=Math.random();
+      const sc = r<.45? makeBuilding(side) : r<.7? makeTree(side) : r<.85? makeLockers(side) : makeBoard(side);
+      const front=G.nextScenery[si];
+      sc.g.position.z=front - sc.len/2;
+      scene.add(sc.g); scenery.push({mesh:sc.g});
+      G.nextScenery[si]=front - sc.len - 1 - Math.random()*3;
+    }
+  });
+}
+
+function addObj(type,lane,zFront,len,mesh,extra={}){
+  mesh.position.x=LANES[lane];
+  scene.add(mesh);
+  const o=Object.assign({type,lane,z:zFront,len,mesh},extra);
+  objects.push(o); placeObj(o); return o;
+}
+function placeObj(o){
+  // mesh origin conventions: trains centered, ramps start at front, others centered
+  if(o.type==='train') o.mesh.position.z=o.z-o.len/2;
+  else if(o.type==='ramp') o.mesh.position.z=o.z;
+  else o.mesh.position.z=o.z;
+}
+
+function spawnRow(){
+  const d=G.dist + (-SPAWN_Z); // world distance at the spawn line
+  if(G.noSpawn) return;
+  const busyTrains=[0,1,2].filter(l=>G.laneFree[l]>d).length;
+  let trainsThisRow=busyTrains;
+  const lanes=shuffle([0,1,2]);
+  let blockedNow=0;
+  for(const l of lanes){
+    if(G.laneFree[l]>d) continue;
+    const r=Math.random();
+    const difficulty=Math.min(1,G.runTime/90);
+    if(r<.18+difficulty*.1 && trainsThisRow<2){
+      const len=12+Math.floor(Math.random()*3)*4;
+      const withRamp=Math.random()<.45;
+      let front=SPAWN_Z;
+      if(withRamp){
+        addObj('ramp',l,front,7,makeRamp(7,3.2));
+        // coins up the ramp
+        for(let i=1;i<7;i+=2) addObj('coin',l,front-i,0,makeCoin(),{y:3.2*i/7+.9});
+        front-=7;
+      }
+      addObj('train',l,front,len,makeTrainCar(len));
+      if(withRamp) for(let i=1;i<len;i+=2) addObj('coin',l,front-i,0,makeCoin(),{y:4.2});
+      G.laneFree[l]=d+(withRamp?7:0)+len+6;
+      trainsThisRow++;
+    } else if(r<.36+difficulty*.1 && blockedNow<2){
+      addObj('desk',l,SPAWN_Z,.9,makeDesk()); blockedNow++; G.laneFree[l]=d+6;
+    } else if(r<.48+difficulty*.08 && blockedNow<2){
+      addObj('bar',l,SPAWN_Z,.4,makeBanner()); blockedNow++; G.laneFree[l]=d+6;
+    } else if(r<.75){
+      for(let i=0;i<5;i++) addObj('coin',l,SPAWN_Z-i*1.6,0,makeCoin(),{y:.9});
+      G.laneFree[l]=d+8;
+    }
+  }
+}
+
+/* ---------- Quiz gates ---------- */
+const GATE_COLORS=['#ff5a5f','#3d7bff','#2ecc71'];
+function wrapText(g,text,x,y,maxW,lh,maxLines){
+  const words=text.split(/\s+/); let line=''; const lines=[];
+  for(const w of words){ const t=line?line+' '+w:w; if(g.measureText(t).width>maxW && line){lines.push(line);line=w;} else line=t; }
+  if(line) lines.push(line);
+  if(lines.length>maxLines){ lines.length=maxLines; lines[maxLines-1]=lines[maxLines-1].replace(/.{0,2}$/,'…'); }
+  const start=y-(lines.length-1)*lh/2;
+  lines.forEach((l,i)=>g.fillText(l,x,start+i*lh));
+}
+function makeGate(letter,text,color){
+  const g=new THREE.Group();
+  const pm=new THREE.MeshLambertMaterial({color:new THREE.Color(color),flatShading:true});
+  [-1.15,1.15].forEach(x=>{const p=box(.2,4.6,.2,pm);p.position.set(x,2.3,0);g.add(p);});
+  const c=document.createElement('canvas'); c.width=512; c.height=360; const cx=c.getContext('2d');
+  cx.fillStyle=color; cx.fillRect(0,0,512,360);
+  cx.fillStyle='rgba(255,255,255,.95)'; cx.fillRect(16,96,480,248);
+  cx.fillStyle='#fff'; cx.font='700 80px Fredoka, sans-serif'; cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText(letter,256,52);
+  cx.fillStyle='#1d2340';
+  let fs=66;
+  const linesFor=f=>{ cx.font=`700 ${f}px Fredoka, sans-serif`; const words=text.split(/\s+/); let line='',n=0,wide=false;
+    for(const w of words){ if(cx.measureText(w).width>450) wide=true; const t=line?line+' '+w:w; if(cx.measureText(t).width>450&&line){n++;line=w;} else line=t; }
+    return {n:n+1,wide}; };
+  while(fs>18){ const r=linesFor(fs); if(!r.wide && r.n*fs*1.15<=232) break; fs-=2; }
+  cx.font=`700 ${fs}px Fredoka, sans-serif`;
+  wrapText(cx,text,256,220,450,fs*1.15,99);
+  const panel=new THREE.Mesh(new THREE.BoxGeometry(2.5,1.76,.12),[pm,pm,pm,pm,new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c)}),pm]);
+  panel.position.y=4.5; g.add(panel);
+  // see-through "laser" curtain
+  const cur=new THREE.Mesh(new THREE.PlaneGeometry(2.1,3.6),new THREE.MeshBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:.22,side:THREE.DoubleSide}));
+  cur.position.y=1.8; g.add(cur);
+  return g;
+}
+function nextQuestion(){
+  if(!QUESTIONS.length) return null;
+  if(!G.qQueue.length) G.qQueue=shuffle(QUESTIONS.map((q,i)=>i));
+  return QUESTIONS[G.qQueue.shift()];
+}
+function answerTimeLimit(){ return Math.max(8, Math.round(30 - G.runTime*0.15)); }
+const GATE_DIST=36;
+function launchQuestion(){
+  const q=nextQuestion(); if(!q) return;
+  const opts=shuffle([{t:q.a,ok:true},{t:q.w[0],ok:false},{t:q.w[1],ok:false}]);
+  const correctLane=opts.findIndex(o=>o.ok);
+  // clear every obstacle that hasn't fully passed the player (coins stay)
+  objects=objects.filter(o=>{ if(o.type==='coin' || o.z-o.len>0.5) return true; scene.remove(o.mesh); return false; });
+  G.laneFree=[0,0,0];
+  const limit=answerTimeLimit();
+  const meshes=[];
+  opts.forEach((o,i)=>{ const m=makeGate(['A','B','C'][i],o.t,GATE_COLORS[i]); meshes.push(addObj('gate',i,-GATE_DIST,0,m)); });
+  G.qActive={q,opts,correctLane,gates:meshes,limit,slowSpeed:GATE_DIST/limit,locked:false,vel:0,resolved:false};
+  G.qAsked++;
+  document.body.classList.add('slowmo');
+  $('toast').classList.remove('show');
+  // HUD
+  $('qtext').textContent=q.q;
+  $('qtext').style.fontSize=(q.q.length<70?21:q.q.length<130?18:q.q.length<200?16:14)+'px';
+  const qo=$('qopts'); qo.innerHTML='';
+  opts.forEach((o,i)=>{ const d=document.createElement('div'); d.className='opt'; d.style.background=GATE_COLORS[i]; d.innerHTML=`<b>${['A','B','C'][i]}</b>`; d.appendChild(document.createTextNode(o.t)); qo.appendChild(d); });
+  qo.children[G.lane].classList.add('sel');
+  $('qsec').textContent=limit;
+  $('qpanel').classList.remove('hidden');
+  sfx.gate();
+  updateHud();
+}
+function resolveQuestion(){
+  const Q=G.qActive; if(!Q||Q.resolved) return;
+  Q.resolved=true;
+  const lane=G.lane;
+  const els=[...$('qopts').children];
+  els.forEach((e,i)=>{ if(i===Q.correctLane) e.classList.add('correct'); else e.classList.add('wrong'); });
+  if(lane===Q.correctLane){
+    G.qRight++; G.combo++;
+    const bonus=500*G.combo;
+    G.score+=bonus; sfx.right();
+    toast(G.combo>1?`CORRECT! x${G.combo} +${bonus}`:`CORRECT! +${bonus}`,'#2ecc71');
+  } else {
+    G.combo=0; G.lives--; sfx.wrong();
+    G.missed.push(Q.q);
+    // repeat a missed question soon
+    const idx=QUESTIONS.indexOf(Q.q); if(idx>=0) G.qQueue.splice(Math.min(2,G.qQueue.length),0,idx);
+    toast(Q.q.a.length<=22?`WRONG! It's ${Q.q.a}`:'WRONG!','#ff5a5f');
+    G.crashT=.5;
+    if(G.lives<=0){ setTimeout(()=>endGame('OUT OF HEARTS!'),700); }
+  }
+  setTimeout(()=>{ $('qpanel').classList.add('hidden'); },1600);
+  G.qTimer=12+Math.random()*6;
+  G.qActive=null; G.noSpawn=false; G.warned=false;
+  G.nextRow=G.dist+22;
+  document.body.classList.remove('slowmo');
+  updateHud();
+}
+
+/* ---------- HUD helpers ---------- */
+let toastTimer;
+function toast(t,color){ const e=$('toast'); e.textContent=t; e.style.color=color||'#fff'; e.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>e.classList.remove('show'),1300); }
+function updateHud(){
+  $('score').textContent=Math.floor(G.score);
+  $('coins').textContent=G.coins;
+  $('hearts').innerHTML=ic('heart').repeat(Math.max(0,G.lives))+ic('heartOff').repeat(Math.max(0,Math.min(3,3-G.lives)));
+  $('qscore').textContent=`${G.qRight}/${G.qAsked}`;
+}
+
+/* =========================================================
+   INPUT
+   ========================================================= */
+function move(dir){
+  if(!G.running||G.paused) return;
+  if(G.qActive&&G.qActive.locked) return;
+  const n=Math.max(0,Math.min(2,G.lane+dir));
+  if(n!==G.lane){ G.lane=n; sfx.lane(); if(G.qActive){ [...$('qopts').children].forEach((e,i)=>e.classList.toggle('sel',i===n)); } }
+}
+function jump(){ if(!G.running||G.paused) return;
+  const Q=G.qActive;
+  if(Q){ if(!Q.locked){ Q.locked=true; Q.vel=Q.slowSpeed; sfx.jump(); toast('LOCKED IN!','#ffc928'); } return; }
+  if(G.grounded){ G.vy=10; G.grounded=false; G.roll=0; sfx.jump(); } }
+function roll(){ if(!G.running||G.paused) return; G.roll=.75; if(!G.grounded) G.vy=-22; }
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(['arrowleft','a'].includes(k)) move(-1);
+  else if(['arrowright','d'].includes(k)) move(1);
+  else if(['arrowup','w',' '].includes(k)) jump();
+  else if(['arrowdown','s'].includes(k)) roll();
+  else if(k==='p'||k==='escape') togglePause();
+  if(k.startsWith('arrow')||k===' ') e.preventDefault();
+});
+let sx=0,sy=0,st=0,swiped=false;
+const surf=$('game');
+surf.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;st=performance.now();swiped=false;});
+surf.addEventListener('pointermove',e=>{
+  if(swiped||!st) return;
+  const dx=e.clientX-sx, dy=e.clientY-sy;
+  if(Math.max(Math.abs(dx),Math.abs(dy))>28){
+    swiped=true;
+    if(Math.abs(dx)>Math.abs(dy)) move(dx>0?1:-1); else (dy<0?jump():roll());
+  }
+});
+surf.addEventListener('pointerup',()=>{st=0;});
+surf.addEventListener('pointercancel',()=>{st=0;});
+
+/* =========================================================
+   SCREENS
+   ========================================================= */
+function startGame(){
+  if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(actx&&actx.state==='suspended') actx.resume();
+  document.body.classList.remove('slowmo');
+  ['startScreen','overScreen','pauseScreen'].forEach(id=>$(id).classList.add('hidden'));
+  $('hud').classList.remove('hidden'); $('qpanel').classList.add('hidden');
+  $('hint').classList.remove('hidden'); setTimeout(()=>$('hint').classList.add('hidden'),5000);
+  resetGame(); G.running=true;
+}
+function togglePause(){
+  if(!G.running||G.over) return;
+  G.paused=!G.paused; $('pauseScreen').classList.toggle('hidden',!G.paused);
+}
+function endGame(title){
+  if(G.over) return;
+  G.over=true; G.running=false; sfx.crash(); document.body.classList.remove('slowmo');
+  $('overTitle').textContent=title;
+  $('oScore').textContent=Math.floor(G.score);
+  $('oCorrect').textContent=`${G.qRight}/${G.qAsked}`;
+  $('oCoins').textContent=G.coins;
+  const r=$('review'); r.innerHTML='';
+  const uniq=[...new Set(G.missed)];
+  if(!uniq.length){ r.innerHTML='<div class="item">'+ic('party')+' No missed questions this run. Nice!</div>'; }
+  uniq.forEach(q=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML='<div></div><div class="ans"></div>'; d.children[0].innerHTML=ic('ask')+' '+esc(q.q); d.children[1].innerHTML=ic('check')+' '+esc(q.a); r.appendChild(d); });
+  if(G.score>best){ best=Math.floor(G.score); try{localStorage.setItem('studySurfersBest',best);}catch(e){} $('best').textContent=best; }
+  setTimeout(()=>{ $('overScreen').classList.remove('hidden'); $('hud').classList.add('hidden'); },900);
+}
+$('playBtn').onclick=startGame;
+$('againBtn').onclick=startGame;
+$('menuBtn').onclick=()=>{ $('overScreen').classList.add('hidden'); $('startScreen').classList.remove('hidden'); };
+$('pauseBtn').onclick=togglePause;
+$('resumeBtn').onclick=togglePause;
+$('quitBtn').onclick=()=>{ G.paused=false; $('pauseScreen').classList.add('hidden'); endGame('QUIT'); };
+
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
+function surfaceAt(o,y){
+  // returns {top, solid} for object at player position (player z = 0)
+  const s=o.z; // how far the front edge has passed the player
+  if(o.type==='ramp') return {top:3.2*Math.min(1,Math.max(0,s)/o.len), ramp:true};
+  if(o.type==='train') return {top:3.2};
+  return null;
+}
+function update(dt){
+  if(!G.running||G.paused) return;
+  const Q=G.qActive;
+  if(!Q) G.runTime+=dt;
+  G.speed=Math.min(34, 14+G.runTime*.18);
+  let v;
+  if(Q){ if(Q.locked){ Q.vel=Math.min(G.speed*1.3, Q.vel+dt*45); v=Q.vel; } else v=Q.slowSpeed; }
+  else v=Math.min(G.speed, G.curSpeed+dt*20); // ease back up after slow-mo
+  G.curSpeed=v;
+  const step=v*dt;
+  G.dist+=step;
+  G.score+=step*.5;
+  trackTex.offset.y=(trackTex.offset.y+step/8)%1;
+  grassTex.offset.y=(grassTex.offset.y+step/3.2)%1;
+  walkTex.offset.y=(walkTex.offset.y+step/3)%1;
+
+  // move objects
+  for(const o of objects){ o.z+=step; placeObj(o); if(o.type==='coin'){ o.mesh.position.y=o.y; o.mesh.rotation.z+=dt*4; } }
+  for(const s of scenery) s.mesh.position.z+=step;
+  for(let i=0;i<2;i++) G.nextScenery[i]+=step;
+  // spawn
+  if(G.dist>=G.nextRow){ spawnRow(); G.nextRow=G.dist+Math.max(11,20-G.runTime*.06)+Math.random()*6; }
+  spawnScenery();
+  // cleanup
+  objects=objects.filter(o=>{ if(o.z-o.len>18){ scene.remove(o.mesh); return false;} return true; });
+  scenery=scenery.filter(s=>{ if(s.mesh.position.z>40){ scene.remove(s.mesh); return false;} return true; });
+
+  // questions
+  if(!G.qActive){
+    G.qTimer-=dt;
+    if(G.qTimer<=3 && !G.warned){ G.warned=true; G.noSpawn=true; toast('QUIZ INCOMING!','#ffc928'); }
+    if(G.qTimer<=0) launchQuestion();
+  } else {
+    const g=G.qActive.gates[0];
+    const left=G.qActive.locked?0:Math.max(0,-g.z/G.qActive.slowSpeed);
+    $('qtimer').firstChild.style.width=(100*left/G.qActive.limit)+'%';
+    $('qsec').textContent=Math.ceil(left);
+    $('qtimer').classList.toggle('urgent', !G.qActive.locked && left<=5);
+    if(g.z>=0) resolveQuestion();
+  }
+
+  // player horizontal
+  const tx=LANES[G.lane];
+  const prevX=G.x;
+  G.x+= (tx-G.x)*Math.min(1,dt*14);
+
+  // vertical physics & collisions
+  let ground=0;
+  for(const o of objects){
+    if(Math.abs(LANES[o.lane]-G.x)>1.3) continue;
+    const overlapZ = o.z>-.35 && o.z-o.len<.35;
+    if(!overlapZ) continue;
+    if(o.type==='coin'){
+      if(Math.abs(o.y-(G.y+.9))<1.3 && Math.abs(LANES[o.lane]-G.x)<1){ o.dead=true; G.coins++; G.score+=10; sfx.coin(); }
+      continue;
+    }
+    if(o.type==='gate') continue;
+    const sf=surfaceAt(o);
+    if(sf){
+      if(sf.ramp){ ground=Math.max(ground,sf.top); }
+      else if(G.y>=sf.top-.6){ ground=Math.max(ground,sf.top); }
+      else { return endGame('HIT A TRAIN!'); }
+      continue;
+    }
+    if(o.type==='desk' && G.y<1.0) return endGame('TRIPPED ON A DESK!');
+    if(o.type==='bar' && G.roll<=0 && G.y<2.7) return endGame('HIT THE BANNER!');
+  }
+  if(objects.some(o=>o.dead)) objects=objects.filter(o=>{ if(o.dead){scene.remove(o.mesh);return false;} return true; });
+
+  G.vy-=30*dt;
+  G.y+=G.vy*dt;
+  if(G.y<=ground){
+    if(!G.grounded && G.vy<-8) { /* landed */ }
+    G.y=ground; G.vy=0; G.grounded=true;
+  } else if(G.y>ground+.05) G.grounded=false;
+  if(G.roll>0) G.roll-=dt;
+  if(G.crashT>0) G.crashT-=dt;
+
+  updateHud();
+}
+
+let animT=0;
+function animatePlayer(dt){
+  animT+=dt*(G.running?(G.qActive&&!G.qActive.locked?1.6:G.curSpeed*.55):3);
+  player.position.set(G.x||0,G.y||0,0);
+  const run=G.grounded&&(G.running||!G.over);
+  const s=Math.sin(animT);
+  armL.rotation.x= run? s*.9 : -2.4; armR.rotation.x= run? -s*.9 : -2.4;
+  legL.rotation.x= run? -s*.9 : .5; legR.rotation.x= run? s*.9 : -.3;
+  body.position.y= run? Math.abs(Math.cos(animT))*.1 : 0;
+  body.scale.y = G.roll>0? .55 : 1;
+  body.rotation.x = G.roll>0? -.4 : 0;
+  body.rotation.z = (G.x-LANES[G.lane])*.12;
+  // flash when hurt
+  body.visible = !(G.crashT>0 && Math.floor(G.crashT*20)%2===0);
+  // shadow blob
+  let ground=0;
+  for(const o of objects){ if(Math.abs(LANES[o.lane]-G.x)>1.3) continue; if(o.z>-.35&&o.z-o.len<.35){ const sf=surfaceAt(o); if(sf&&G.y>=sf.top-.6) ground=Math.max(ground,sf.top);} }
+  shadowBlob.position.set(G.x||0,ground+.03,0);
+  shadowBlob.scale.setScalar(Math.max(.4,1-(G.y-ground)*.2));
+}
+let camY=4;
+function updateCamera(dt){
+  const targetY=(G.y||0)*.7+4.3;
+  camY+=(targetY-camY)*Math.min(1,dt*5);
+  const tf=G.qActive&&!G.qActive.locked?52:62; if(Math.abs(camera.fov-tf)>.05){ camera.fov+=(tf-camera.fov)*Math.min(1,dt*3); camera.updateProjectionMatrix(); }
+  camera.position.set((G.x||0)*.55,camY,7.2);
+  camera.lookAt((G.x||0)*.6,camY-2.6,-8);
+  sun.position.set((G.x||0)-12,25,10); sun.target.position.set(G.x||0,0,-8);
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000); last=now;
+  update(dt);
+  if(!G.running && !G.over){ // idle on menu: slow scroll
+    G.x=0; G.y=0; G.grounded=true;
+    trackTex.offset.y=(trackTex.offset.y+dt*.6)%1; grassTex.offset.y=(grassTex.offset.y+dt*1.5)%1; walkTex.offset.y=(walkTex.offset.y+dt*1.6)%1;
+    for(const s of scenery) s.mesh.position.z+=dt*5; for(let i=0;i<2;i++) G.nextScenery[i]+=dt*5;
+    spawnScenery();
+    scenery=scenery.filter(s=>{ if(s.mesh.position.z>40){ scene.remove(s.mesh); return false;} return true; });
+  }
+  animatePlayer(dt); updateCamera(dt);
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
+resetGame();
+requestAnimationFrame(loop);
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{ if(!G.running) resetGame(); });
+</script>
+</body>
+</html>
