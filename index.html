@@ -253,6 +253,32 @@ const PART_VERBS=Object.keys(PAST2BASE).filter(v=>!['wrote'].includes(v)).concat
 const NAME='([A-Z][a-zà-ÿ]+\\.?(?:\\s+(?:de|da|del|van|von|di|la|le)?\\s*[A-Z][a-zà-ÿ]+\\.?){0,3})';
 const SMALL=new Set(['and','of','for','the','in','on','to','a','an','at','by','with','&']);
 
+const BAD_START=/^(their|his|her|its|our|your|my|this|these|those|such|some|and|or|but|which|that|who|whom|whose|when|while|because|so|then|also|in|on|at|of|to|for|from|by|with|as|into|than|if|it|they|them|he|she|we|you|i)\b/i;
+// a choice/term must look like a complete word or phrase, not a piece cut out of a sentence
+function cleanPhrase(x){
+  x=String(x).trim();
+  if(!x || x.length>48 || !/\p{L}|\d/u.test(x)) return false;
+  if(BAD_START.test(x)) return false;
+  const last=x.toLowerCase().split(/\s+/).pop().replace(/[^\p{L}\p{N}]/gu,'');
+  if(x.includes(' ') && STOP.has(last)) return false;          // ends with "of", "the", "in"...
+  if(/[,:;\-–—/&]$/.test(x)) return false;
+  if((x.match(/\(/g)||[]).length!==(x.match(/\)/g)||[]).length) return false;
+  if((x.match(/["“”]/g)||[]).length%2) return false;
+  if(x.split(/\s+/).length>6) return false;
+  return true;
+}
+// a definition must read like a noun phrase ("the process of…", "an instrument…", "information given…")
+function goodDef(def,colonStyle){
+  const d=def.trim(), w=d.split(/\s+/), first=w[0].toLowerCase().replace(/[^a-z]/g,'');
+  if(w.length<3) return false;
+  const lastW=w[w.length-1].toLowerCase().replace(/[^a-z]/g,'');
+  if(STOP.has(lastW)) return false;                              // definition was cut off
+  if(/\b(them|they|it|he|she|we|you)\b/i.test(w.slice(0,4).join(' '))) return false;
+  if(/ly$/.test(first)) return false;                            // "carefully monitored…"
+  if(!colonStyle) return true;
+  return /^(a|an|the|any|one|two|three|process|method|way|act|study|use|state|set|group|type|kind|form|ability|science|art|practice|system|theory|branch|tool|device|place|person|people|information|data)$/.test(first)
+    || /(tion|sion|ment|ness|ity|ance|ence|ure|ism|ist|er|or|ing|ics|age|ship|logy)$/.test(first);
+}
 function cleanText(raw){
   let t=raw.replace(/\r/g,'').replace(/ /g,' ').replace(/[ \t]+/g,' ');
   t=t.replace(/(\w)-\n\s*([a-z])/g,'$1$2');                       // re-join hyphenated words
@@ -268,7 +294,8 @@ function cleanText(raw){
     const text=bullet? l.slice(2).trim() : l;
     const prev=blocks[blocks.length-1];
     const prevOpen=prev && !/[.!?:;]$/.test(prev.text) && prev.text.length>60 && !prev.bullet;
-    if(prev && !bullet && (prevOpen || /^[a-z(,]/.test(text)) && !prev.heading){ prev.text+=' '+text; continue; }
+    const newStatement=/^[A-Z][\w'’()\- ]{1,45}?(?:\s+(?:is|are|refers to|means|was|were)\b|\s*[:–—]\s|\s-\s)/.test(text) || /^[A-Z][a-z]+\s+[A-Z][a-z]+\s+[a-z]+ed\b/.test(text);
+    if(prev && !bullet && (/^[a-z(,]/.test(text) || (prevOpen && !newStatement)) && !prev.heading){ prev.text+=' '+text; continue; }
     blocks.push({text,bullet,heading:false});
   }
   // headings: short line, no end punctuation, followed by bullets
@@ -290,6 +317,7 @@ function pickWrong(ans,pool,n=2,avoidText=''){
   const seen=new Set([a]);
   const cands=[];
   for(const p of pool){
+    if(!cleanPhrase(p)) continue;
     const k=norm(String(p).replace(/\s*\([^)]*\)/g,''));
     if(!k||seen.has(k)||k.includes(a)||a.includes(k)) continue;
     if(avoidText && norm(avoidText).includes(k)) continue;
@@ -320,6 +348,12 @@ function makeQuestions(raw){
     const opts=[q.a,...q.w].map(norm);
     if(new Set(opts).size<3||opts.some(o=>!o)) return;
     if(q.q.length>170 || q.a.length>48 || q.w.some(x=>x.length>48)) return;
+    if(type!=='exact' && type!=='qa'){
+      if(![q.a,...q.w].every(cleanPhrase)) return;
+      const L=[q.a,...q.w].map(x=>x.length), W=[q.a,...q.w].map(x=>x.split(/\s+/).length);
+      if(Math.max(...L)>Math.max(12,Math.min(...L)*3.2) || Math.max(...W)-Math.min(...W)>3) return; // one choice sticks out
+      if((q.q.match(/["“”]/g)||[]).length%2 || (q.q.match(/\(/g)||[]).length!==(q.q.match(/\)/g)||[]).length) return;
+    }
     if(type!=='exact' && type!=='qa' && type!=='blank' && norm(q.q).includes(norm(q.a))) return; // answer would be given away
     const k=norm(q.q)+'|'+norm(q.a); if(seenQ.has(k)) return; seenQ.add(k);
     typed[type].push(q);
@@ -362,13 +396,14 @@ function makeQuestions(raw){
       if(items.length>=3 && items.length<=8){ lists.push({subject:l[1].replace(/^(the)\s+/i,''),items}); used.add(s); }
     }
     // definitions
+    let colon=false;
     let d=s.match(/^((?:The |An? )?[A-Z][\w\-()'’/&]*(?:\s+[\w\-()'’/&]+){0,5}?)\s+(?:is|are|refers to|means|is defined as|is known as|is called)\s+(.{12,200})$/);
-    if(!d) d=s.match(/^([A-Za-z][\w\s\-()'’/&]{1,45}?)\s*(?:[:–—]|\s-\s)\s*(.{12,200})$/);
+    if(!d){ d=s.match(/^([A-Za-z][\w\s\-()'’/&]{1,45}?)\s*(?:[:–—]|\s-\s)\s*(.{12,200})$/); colon=!!d; }
     if(d && !used.has(s)){
       const term=d[1].replace(/^(the|an?)\s+/i,'').replace(/\s*\([A-Z][A-Za-z0-9&]{1,9}\)\s*$/,'').trim(), def=trimEnd(d[2]);
       const titleish=def.split(/\s+/).filter(w=>w.length>=4).every(w=>/^[A-Z]/.test(w)); // e.g. "Historical Antecedents"
-      const label=/^(chapter|lesson|module|unit|part|section|topic|week|page|quiz|exam|midterm|finals?|prelim|reviewer)\b|reviewer$/i.test(term);
-      if(!titleish && !label)
+      const label=/^(chapter|lesson|module|unit|part|section|topic|week|page|quiz|exam|midterm|finals?|prelim)\s*([0-9]+|[ivxlc]+)?\s*$|^(chapter|lesson|module|unit|part|section|topic|week)\s+([0-9]+|[ivxlc]+)\b|reviewer/i.test(term);
+      if(!titleish && !label && cleanPhrase(term) && term.split(/\s+/).length<=5 && goodDef(def,colon))
       if(term.split(/\s+/).length<=6 && !/^(it|this|that|they|there|he|she|we|you|i|which|one|example|note)$/i.test(term) && !STOP.has(term.toLowerCase()) && !terms.some(t=>norm(t.term)===norm(term)))
         { terms.push({term,def}); used.add(s); }
     }
@@ -377,7 +412,7 @@ function makeQuestions(raw){
   const groups=[];
   blocks.forEach((b,i)=>{ if(!b.heading) return; const items=[]; for(let j=i+1;j<blocks.length&&blocks[j].bullet;j++){ const it=trimEnd(blocks[j].text.split(/\s*[:–—-]\s+/)[0]); if(it.length<=40) items.push(it);} if(items.length>=2) groups.push({heading:trimEnd(b.text),items}); });
   // bullet definitions under headings also count as terms
-  blocks.forEach(b=>{ if(!b.bullet) return; const m=b.text.match(/^([^:–—]{2,45})\s*[:–—]\s*(.{12,200})$/); if(m){ const term=m[1].trim(); if(term.split(/\s+/).length<=6 && !terms.some(t=>norm(t.term)===norm(term))) terms.push({term,def:trimEnd(m[2])}); } });
+  blocks.forEach(b=>{ if(!b.bullet) return; const m=b.text.match(/^([^:–—]{2,45})\s*[:–—]\s*(.{12,200})$/); if(m){ const term=m[1].trim(); if(term.split(/\s+/).length<=5 && cleanPhrase(term) && goodDef(trimEnd(m[2]),true) && !terms.some(t=>norm(t.term)===norm(term))) terms.push({term,def:trimEnd(m[2])}); } });
 
   const termNames=terms.map(t=>t.term);
   const peopleArr=[...people], yearArr=[...years];
